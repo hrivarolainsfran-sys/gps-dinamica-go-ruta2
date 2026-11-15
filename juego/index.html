@@ -4,10 +4,22 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#EC4217">
-<link rel="manifest" href="manifest.webmanifest">
+<link rel="manifest" href="manifest.webmanifest" id="appManifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="apple-touch-icon" href="icon.svg">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Ruta GO" id="appTitle">
+<script>
+// Celular del jugador: se instala como app propia que abre directo en #jugador
+(function () {
+  var esJugador = /^#jugador/.test(location.hash) || /[?&]app=jugador/.test(location.search);
+  window.APP_JUGADOR = esJugador;
+  if (!esJugador) return;
+  document.getElementById('appManifest').href = 'jugador.webmanifest';
+  document.getElementById('appTitle').content = 'Jugador R2';
+})();
+</script>
 <title>El Espíritu y la misión · Ruta a la capilla</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -1273,7 +1285,8 @@ function setView(name, html) {
 }
 
 function route() {
-  const hs = location.hash.slice(1);
+  let hs = location.hash.slice(1);
+  if (!hs && view !== 'team' && /[?&]app=jugador/.test(location.search)) hs = 'jugador'; // app instalada del jugador
   if (hs.startsWith('j=')) {
     try { const g = dec(hs.slice(2)); if (!g || g.v !== 1 || !Array.isArray(g.p)) throw 0; loadGame(g, false, false); }
     catch (e) { clearHash(); return showHome('El enlace del juego está incompleto. Pídanle al líder que vuelva a mostrar el QR.'); }
@@ -1283,6 +1296,8 @@ function route() {
     const pantalla = hs !== 'equipos';
     const raw = pantalla ? hs.slice(7).replace(/^=/, '') : '';
     clearHash();
+    // La dirección queda fija en el jugador: así «Agregar a pantalla de inicio» (iPhone) abre directo acá
+    if (pantalla && !raw) { try { history.replaceState(null, '', location.pathname + '?app=jugador#jugador'); } catch (e) {} }
     if (raw) {
       let g = null;
       try { g = dec(raw); if (!g || g.v !== 1 || !Array.isArray(g.p)) throw 0; }
@@ -1883,6 +1898,33 @@ function safetyHTML() {
     ${game && game.lim ? `<li><b>Límites:</b> ${esc(game.lim)}</li>` : '<li>No salgan del predio.</li>'}
   </ul></div>`;
 }
+/* ---------- Instalar el celular del jugador como app ---------- */
+let installEvt = null;
+const isStandalone = () => (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
+const isIOS = () => /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+window.addEventListener('beforeinstallprompt', e => { if (!window.APP_JUGADOR) return; e.preventDefault(); installEvt = e; });
+window.addEventListener('appinstalled', () => { installEvt = null; const c = document.getElementById('instCard'); if (c) c.hidden = true; toast('App instalada: búscala como «Jugador R2»'); });
+function installHTML() {
+  if (isStandalone()) return '';
+  return `<div class="card" id="instCard"><h3>Instalar en este celular</h3>
+    <p class="small">Queda como app «Jugador R2» en la pantalla de inicio: abre directo en el juego, a pantalla completa y aunque falle internet.</p>
+    <button type="button" class="btn block" id="instBtn">Instalar la app del jugador</button>
+    <p class="small" id="instTip" hidden></p></div>`;
+}
+function wireInstall() {
+  const b = document.getElementById('instBtn'); if (!b) return;
+  b.onclick = async () => {
+    const tip = document.getElementById('instTip');
+    if (installEvt) {
+      const ev = installEvt; installEvt = null;
+      try { ev.prompt(); const r = await ev.userChoice; if (r && r.outcome === 'accepted') return; } catch (e) {}
+    }
+    tip.hidden = false;
+    tip.innerHTML = isIOS()
+      ? 'En iPhone: abre esta página en <b>Safari</b>, toca el botón <b>Compartir</b> (el cuadrado con la flecha hacia arriba) y elige <b>«Agregar a pantalla de inicio»</b>.'
+      : 'Abre el menú <b>⋮</b> de Chrome (arriba a la derecha) y toca <b>«Instalar app»</b> o <b>«Agregar a la pantalla principal»</b>.';
+  };
+}
 function showSetup() {
   Geo.stop();
   const ng = goods().length, nt = traps().length;
@@ -1900,7 +1942,9 @@ function showSetup() {
       </ul>
       ${safetyHTML()}<button class="btn primary block" id="goBtn">Empezar recorrido</button>
       <p class="small center">Antes de empezar, conecta este celular a la pantalla grande. ${ROOM.isIn(game) ? 'Al empezar, pide permiso para la brújula y el movimiento: el personaje camina con tus pasos. Empieza parado en la entrada, mirando hacia el frente.' : `Al empezar, pide permiso para usar la ubicación${Compass.needsPermission() ? ' y la brújula' : ''}.`}</p>
+      ${installHTML()}
     </main>`);
+    wireInstall();
     $('#goBtn').onclick = () => {
       Sound.init(); Compass.start(); if (ROOM.isIn(game)) Indoor.requestMotion();
       T = { team: 1, pantalla: true, name: $('#tName').value.trim(), start: Date.now(), visited: {}, warned: {}, avoided: {}, fallen: {}, arrived: {}, trail: [], lockUntil: 0, score: 0, done: 0 };
