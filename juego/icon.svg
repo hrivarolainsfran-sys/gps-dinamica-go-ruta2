@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" fill="#EC4217"/>
+  <circle cx="400" cy="112" r="46" fill="none" stroke="#2536A8" stroke-width="14"/>
+  <text x="250" y="330" text-anchor="middle" font-family="Anton, Impact, 'Arial Narrow', sans-serif" font-size="200" fill="#FFFFFF" transform="skewX(-10) translate(58 0)">GO!</text>
+  <rect x="106" y="372" width="300" height="18" rx="9" fill="#FBF4E9"/>
+</svg>

@@ -1,0 +1,25 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Cuenta de Google del líder. En la consola de Firebase se reemplaza por el correo real.
+    function esLider() {
+      return request.auth != null && request.auth.token.email == 'CORREO_DEL_LIDER';
+    }
+
+    // Ruta a la capilla: recorrido (solo el líder), transmisión en vivo (el jugador) y control (solo el líder).
+    match /rutas/{ruta} {
+      allow read: if true;
+      allow write: if esLider() && request.resource.data.keys().hasOnly(['v', 'g', 'p', 'r', 'lim', 'c', 'updatedAt']);
+
+      match /vivo/{doc} {
+        allow read: if true;
+        allow write: if (doc == 'actual' && request.resource.data.keys().hasOnly([
+            'run', 'name', 'start', 'score', 'visited', 'warned', 'fallen', 'avoided',
+            'pos', 't', 'weak', 'trail', 'target', 'lockUntil', 'done', 'warn', 'ev'
+          ]))
+          || (doc == 'control' && esLider() && request.resource.data.keys().hasOnly(['paused', 'hideQ', 'cmd', 't']));
+      }
+    }
+  }
+}
