@@ -1,6 +1,6 @@
 // Guarda la presentación y el juego en el celular para que abran aunque falle internet.
 // La transmisión en vivo (Firebase) siempre va por la red; Firestore guarda su propia copia del recorrido.
-const CACHE = 'go-ruta2-v1';
+const CACHE = 'go-ruta2-v2';
 const CORE = [
   './',
   './index.html',
@@ -8,7 +8,11 @@ const CORE = [
   './juego/index.html',
   './juego/config.js?v=2',
   './juego/manifest.webmanifest',
-  './juego/icon.svg'
+  './juego/icon.svg',
+  './juego/jugador.webmanifest',
+  './juego/icon-192.png',
+  './juego/icon-512.png',
+  './juego/apple-touch-icon.png'
 ];
 const CDN = [
   'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
