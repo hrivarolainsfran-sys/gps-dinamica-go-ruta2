@@ -1019,15 +1019,17 @@ const Geo = {
   emit() { this.subs.forEach(f => f(this.pos, this.err)); }
 };
 const Compass = {
-  heading: null, listening: false,
+  heading: null, listening: false, relative: false, gotAbs: false,
   needsPermission() { return typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function'; },
   start() {
     const listen = () => {
       if (this.listening) return; this.listening = true;
       const handler = e => {
         let h = null;
-        if (typeof e.webkitCompassHeading === 'number') h = e.webkitCompassHeading;
-        else if (e.absolute && typeof e.alpha === 'number') h = (360 - e.alpha) % 360;
+        if (typeof e.webkitCompassHeading === 'number') { h = e.webkitCompassHeading; this.gotAbs = true; this.relative = false; }
+        else if (e.absolute && typeof e.alpha === 'number') { h = (360 - e.alpha) % 360; this.gotAbs = true; this.relative = false; }
+        // Celulares sin brújula absoluta: se usa el giro relativo (sirve porque la dirección se toma al empezar)
+        else if (!this.gotAbs && typeof e.alpha === 'number') { h = (360 - e.alpha) % 360; this.relative = true; }
         if (h !== null) this.heading = (h + ((screen.orientation && screen.orientation.angle) || 0)) % 360;
       };
       window.addEventListener('deviceorientationabsolute', handler);
@@ -1042,7 +1044,7 @@ const Compass = {
 
 // Movimiento dentro de la capilla: pasos (acelerómetro) + brújula; se corrige al escanear cada cartel. Joystick como respaldo.
 const Indoor = {
-  on: false, x: 0, y: 0, h: 0, roomHd: null, w: 23, l: 22, stepLen: 0.65, f: null, up: false, lastStep: 0, hb: null,
+  on: false, x: 0, y: 0, h: 0, roomHd: null, hdAuto: false, w: 23, l: 22, stepLen: 0.65, f: null, up: false, lastStep: 0, hb: null,
   joyV: null, joyTimer: null, listening: false, steps: 0, manual: false,
   needsPermission() { return typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function'; },
   requestMotion() {
@@ -1053,14 +1055,19 @@ const Indoor = {
     } catch (e) {}
   },
   start(g, from) {
-    this.w = ROOM.w(g); this.l = ROOM.l(g); this.roomHd = ROOM.hd(g);
+    this.w = ROOM.w(g); this.l = ROOM.l(g); this.roomHd = ROOM.hd(g); this.hdAuto = false;
     const e = from || ROOM.ent(g);
     this.on = true; this.h = 0; this.moveTo(e[0], e[1]);
     clearInterval(this.hb); this.hb = setInterval(() => this.push(), 2000);
     if (!this.needsPermission()) this.requestMotion();
   },
   stop() { this.on = false; clearInterval(this.hb); this.hb = null; this.joy(null); },
-  compassOn() { return !this.manual && !this.joyV && Compass.heading != null && this.roomHd != null; },
+  compassOn() {
+    if (this.manual || this.joyV || Compass.heading == null) return false;
+    // Sin calibrar (o brújula relativa): el frente es hacia donde mira el jugador al empezar, parado en la entrada
+    if (this.roomHd == null || (Compass.relative && !this.hdAuto)) { this.roomHd = Compass.heading; this.hdAuto = true; }
+    return true;
+  },
   facing() { return this.compassOn() ? (((Compass.heading - this.roomHd) % 360) + 360) % 360 : this.h; },
   moveTo(x, y) { this.x = Math.max(0.3, Math.min(this.w - 0.3, x)); this.y = Math.max(0.3, Math.min(this.l - 0.3, y)); this.push(); },
   stepOnce() {
