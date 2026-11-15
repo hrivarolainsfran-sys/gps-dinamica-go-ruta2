@@ -2101,6 +2101,9 @@ function showGame() {
         if (c.type === 'arrive') {
           const tgt = target();
           if (tgt && (!c.id || c.id === tgt.id)) { closeSheet(); T.lockUntil = 0; ctrlPaused = false; handleCode(tgt.code); toast('El líder marcó la llegada'); }
+        } else if (c.type === 'move') {
+          // El líder tocó el plano en el control: el personaje salta a ese lugar de la capilla
+          if (Indoor.on && isFinite(c.x) && isFinite(c.y)) { Indoor.moveTo(+c.x, +c.y); publishLive(true); toast('El líder corrigió tu posición'); buzz(40); }
         } else if (c.type === 'end') { closeSheet(); if (!T.done) { T.done = Date.now(); saveT(); publishLive(true); return showFinal(); } }
         else if (c.type === 'reset') { store.del(tKey()); T = null; return showTeam(); }
       }
@@ -2378,6 +2381,11 @@ function showControl() {
       <button class="btn block" id="cPause">Pausar el juego</button>
       <button class="btn block" id="cHide">Ocultar la pregunta en el proyector</button>
       <div id="cEndBox"><button class="btn danger block" id="cEnd">Terminar el recorrido</button></div></section>
+    <section class="card" id="cMoveCard" hidden><p class="kicker">Posición en la capilla</p>
+      <h2>Corregir dónde está el jugador</h2>
+      <p class="small" id="cMoveHint"></p>
+      <div class="roomed" id="cRoom"></div>
+      <button class="btn block" id="cMove">Corregir posición</button></section>
     <section class="card"><p class="kicker">Entre partidas</p>
       <div id="cResetBox"><button class="btn block" id="cReset">Reiniciar al jugador</button></div>
       <button class="btn block" id="cClear">Dejar la pantalla grande en espera</button></section>
@@ -2409,8 +2417,67 @@ function showControl() {
   $('#cPause').onclick = () => send({ paused: !ctrl.paused }, ctrl.paused ? 'Juego reanudado' : 'Juego en pausa');
   $('#cHide').onclick = () => send({ hideQ: !ctrl.hideQ }, ctrl.hideQ ? 'Pregunta visible' : 'Pregunta oculta');
   $('#cClear').onclick = () => Cloud.liveRef().set({ run: 0, t: Date.now() }).then(() => toast('Pantalla grande en espera'), () => toast('No se pudo limpiar la pantalla'));
+  // ---- Corregir la posición del jugador tocando el plano (solo modo interior)
+  let moving = false, sentAt = null, roomKey = '';
+  $('#cMove').onclick = () => {
+    if (!D || !D.run || D.done) return toast('No hay un recorrido en curso.');
+    moving = !moving; drawCRoom(true);
+    if (moving) $('#cRoom').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  };
+  $('#cRoom').addEventListener('click', e => {
+    const svg = $('#cRoom svg'); if (!moving || !svg || !R) return;
+    const w = ROOM.w(R), l = ROOM.l(R);
+    const pt = svg.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY;
+    const q = pt.matrixTransform(svg.getScreenCTM().inverse());
+    const x = Math.round(Math.max(0.3, Math.min(w - 0.3, q.x)) * 10) / 10, y = Math.round(Math.max(0.3, Math.min(l - 0.3, q.y)) * 10) / 10;
+    moving = false; sentAt = { x, y, t: Date.now() };
+    send({ cmd: { type: 'move', x, y, at: Date.now() } }, 'Posición corregida');
+    drawCRoom(true);
+  });
+  function drawCRoom(force) {
+    const card = $('#cMoveCard'); if (!card) return;
+    const inside = ROOM.isIn(R);
+    card.hidden = !inside; if (!inside) return;
+    const w = ROOM.w(R), l = ROOM.l(R), ent = ROOM.ent(R), live = D && D.run && !D.done;
+    const posM = live && D.pos && D.pos.lat != null ? LL2M(D.pos.lat, D.pos.lng) : null;
+    if (sentAt && Date.now() - sentAt.t > 6000) sentAt = null;
+    const key = JSON.stringify([w, l, ent, R.p, live ? [D.pos, (D.visited || []).length, (D.trail || []).length, D.target] : 0, moving, sentAt]);
+    if (!force && key === roomKey) return; roomKey = key;
+    const visited = new Set(live ? D.visited || [] : []);
+    let h = `<svg class="roomsvg" viewBox="-1 -2 ${w + 2} ${l + 4}" role="img" aria-label="Plano de la capilla con la posición del jugador">`;
+    h += `<rect x="0" y="0" width="${w}" height="${l}" fill="#F3E6D2" stroke="#2536A8" stroke-width=".18"/>`;
+    for (let x = 1; x < w; x++) h += `<line x1="${x}" y1="0" x2="${x}" y2="${l}" stroke="#2536A8" stroke-opacity="${x % 5 ? .08 : .22}" stroke-width=".05"/>`;
+    for (let y = 1; y < l; y++) h += `<line x1="0" y1="${y}" x2="${w}" y2="${y}" stroke="#2536A8" stroke-opacity="${y % 5 ? .08 : .22}" stroke-width=".05"/>`;
+    h += `<rect x="0" y="0" width="${w}" height="1.3" fill="#EC4217" fill-opacity=".22"/><text x="${w / 2}" y="-.6" text-anchor="middle" font-size=".9" font-family="Space Mono,monospace" font-weight="700" fill="#EC4217">FRENTE</text>`;
+    h += `<rect x="${ent[0] - 1}" y="${ent[1] - .4}" width="2" height=".8" rx=".2" fill="#2536A8"/><text x="${ent[0]}" y="${ent[1] + .25}" text-anchor="middle" font-size=".5" font-family="Space Mono,monospace" font-weight="700" fill="#FBF4E9">ENTRADA</text>`;
+    if (live && Array.isArray(D.trail) && D.trail.length >= 4) {
+      let d = ''; for (let i = 0; i + 1 < D.trail.length; i += 2) { const [x, y] = LL2M(D.trail[i], D.trail[i + 1]); d += (i ? 'L' : 'M') + x.toFixed(2) + ' ' + y.toFixed(2); }
+      h += `<path d="${d}" fill="none" stroke="#2536A8" stroke-opacity=".35" stroke-width=".18" stroke-linecap="round" stroke-linejoin="round"/>`;
+    }
+    R.p.forEach(r => {
+      const p = BY_ID[r[0]]; if (!p || r[1] == null) return;
+      const [x, y] = LL2M(r[1], r[2]);
+      const col = visited.has(p.id) ? '#8a8a8a' : p.type === 'trap' ? '#E5320B' : p.type === 'dest' ? '#EC4217' : '#2536A8';
+      const ring = live && D.target === p.id ? `<circle cx="${x}" cy="${y}" r="1.2" fill="none" stroke="#EC4217" stroke-width=".15" stroke-dasharray=".4 .3"/>` : '';
+      h += `${ring}<circle cx="${x}" cy="${y}" r=".75" fill="${col}" stroke="#fff" stroke-width=".12"/><g transform="translate(${x - .5} ${y - .5}) scale(${1 / 24})" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="${GLYPHS[iconOf(p)].d}"/></g>
+        <text x="${x}" y="${y - 1}" text-anchor="middle" font-size=".6" font-family="Space Mono,monospace" font-weight="700" fill="${col}">${p.code}</text>`;
+    });
+    if (sentAt) h += `<circle cx="${sentAt.x}" cy="${sentAt.y}" r=".9" fill="none" stroke="#EC4217" stroke-width=".2" stroke-dasharray=".3 .25"/>`;
+    if (posM) {
+      const [px, py] = [Math.max(0, Math.min(w, posM[0])), Math.max(0, Math.min(l, posM[1]))];
+      h += `<circle cx="${px}" cy="${py}" r=".7" fill="#FFC93C" stroke="#16225b" stroke-width=".2"/><text x="${px}" y="${py + 1.6}" text-anchor="middle" font-size=".6" font-family="Space Mono,monospace" font-weight="700" fill="#16225b">JUGADOR</text>`;
+    }
+    h += '</svg>';
+    $('#cRoom').innerHTML = h;
+    $('#cRoom').classList.toggle('placing', moving);
+    $('#cMove').textContent = moving ? 'Cancelar' : 'Corregir posición';
+    $('#cMoveHint').innerHTML = !live ? 'Cuando el jugador empiece el recorrido, su posición aparece aquí (punto amarillo).'
+      : moving ? '<b>Toca el plano</b> donde está parado el jugador ahora.'
+      : 'Si el personaje no está donde está el jugador de verdad, toca «Corregir posición» y después toca el plano.';
+  }
   function render() {
     if (view !== 'control') return;
+    drawCRoom();
     const now = Date.now();
     $('#cPause').textContent = ctrl.paused ? 'Reanudar el juego' : 'Pausar el juego';
     $('#cHide').textContent = ctrl.hideQ ? 'Mostrar la pregunta en el proyector' : 'Ocultar la pregunta en el proyector';
