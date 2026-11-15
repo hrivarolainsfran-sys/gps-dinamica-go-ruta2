@@ -1,0 +1,849 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>[hidden]{display:none!important}img{max-width:100%}</style>
+<title>El Espíritu y la misión · El GPS y la señal perdida</title>
+<meta name="theme-color" content="#EC4217">
+<link rel="icon" href="juego/icon.svg" type="image/svg+xml">
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700;1,9..40,400&family=Gochi+Hand&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+/* Layout: tablero para proyectar. Celular con GPS a la izquierda, texto grande a la derecha, una parada por escena. */
+:root{
+  --bg:#E8EDE7; --surface:#F7F9F5; --ink:#14201A; --muted:#4D5C54; --line:#C6D1C8;
+  --sign:#0B6B45; --sign-ink:#FFFFFF;
+  --route:#16A36B; --route-case:#0A5A39;
+  --warn:#F3B41C; --warn-ink:#2B1F00; --stop:#C33A2E; --off:#5C6963;
+  --land:#DDE5DA; --block:#F4F6F1; --street:#FFFFFF; --street-case:#C9D3CA; --park:#C5DEBC; --label:#76847C;
+  --bezel:#0C110E;
+  --f-display:"Overpass", "Arial Narrow", system-ui, sans-serif;
+  --f-body:"Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono:"Overpass Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:16px;line-height:1.45}
+button{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--warn);outline-offset:3px}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+.app{min-height:100%;display:grid;grid-template-rows:auto 1fr auto;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));box-sizing:border-box}
+.wrap{width:100%;max-width:1240px;margin-inline:auto;box-sizing:border-box}
+
+/* Cabecera */
+.top{display:flex;flex-wrap:wrap;align-items:center;gap:14px 28px;padding-block:18px 10px}
+.brand{display:flex;align-items:center;gap:12px;min-width:0}
+.brand-mark{width:42px;height:42px;border-radius:9px;background:var(--sign);color:var(--sign-ink);display:grid;place-items:center;box-shadow:inset 0 0 0 2px var(--sign),inset 0 0 0 3.5px var(--sign-ink);flex:none}
+.brand-mark svg{width:24px;height:24px}
+.kicker{margin:0;font:700 11.5px/1.2 var(--f-mono);text-transform:uppercase;letter-spacing:.09em;color:var(--muted)}
+h1{margin:2px 0 0;font:800 22px/1.1 var(--f-display);letter-spacing:-.01em}
+.stops{flex:1 1 320px;max-width:520px;margin-inline:auto;display:flex;justify-content:space-between;align-items:center;position:relative;min-width:0}
+.stops::before{content:"";position:absolute;left:8px;right:8px;top:50%;height:4px;margin-top:-2px;border-radius:2px;
+  background:repeating-linear-gradient(90deg,var(--line) 0 10px,transparent 10px 16px)}
+.stop{position:relative;width:18px;height:18px;border-radius:50%;border:3px solid var(--line);background:var(--surface);padding:0;cursor:pointer;transition:transform .2s,background-color .2s,border-color .2s}
+.stop.done{background:var(--route);border-color:var(--route)}
+.stop[aria-current="step"]{background:var(--sign);border-color:var(--sign);transform:scale(1.35)}
+.stop.opt{border-style:dashed}
+.tools{display:flex;gap:8px;flex-wrap:wrap}
+.tool{font:700 11.5px/1 var(--f-mono);text-transform:uppercase;letter-spacing:.07em;padding:10px 14px;border-radius:999px;border:1.5px solid var(--line);background:transparent;cursor:pointer}
+.tool:hover{border-color:var(--ink)}
+.tool[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+
+/* Escenario */
+.stage{display:grid;grid-template-columns:auto minmax(0,1fr);gap:clamp(24px,5vw,76px);align-items:center;padding-block:14px 22px}
+.device-col{display:flex;flex-direction:column;align-items:center;gap:14px}
+.copy{min-width:0;max-width:44rem;display:flex;flex-direction:column;gap:18px}
+.copy.enter{animation:rise .45s ease both}
+@keyframes rise{from{opacity:.3;transform:translateY(10px)}}
+.eyebrow{margin:0;display:flex;flex-wrap:wrap;align-items:center;gap:10px;font:700 13px/1.3 var(--f-mono);text-transform:uppercase;letter-spacing:.08em;color:var(--sign)}
+.chip{background:var(--warn);color:var(--warn-ink);padding:4px 8px 3px;border-radius:4px;font-size:11px;letter-spacing:.1em}
+h2{margin:0;font:800 clamp(2.1rem,1.1rem + 3.3vw,4.1rem)/1.02 var(--f-display);letter-spacing:-.018em;text-wrap:balance}
+.sub{margin:0;font-size:clamp(1.1rem,.95rem + .7vw,1.5rem);line-height:1.45;max-width:36em}
+.verse{margin:0;display:grid;gap:6px}
+.verse blockquote{margin:0;font-style:italic;font-size:clamp(1rem,.95rem + .3vw,1.2rem);line-height:1.5;color:var(--muted)}
+.verse figcaption{font:700 12px/1 var(--f-mono);text-transform:uppercase;letter-spacing:.08em;color:var(--sign)}
+.sign{background:var(--sign);color:var(--sign-ink);border:5px solid var(--sign);border-radius:13px;box-shadow:inset 0 0 0 2px var(--sign-ink);padding:14px 18px 16px;max-width:36em}
+.sign-label{display:block;font:700 11px/1 var(--f-mono);text-transform:uppercase;letter-spacing:.12em;opacity:.85}
+.sign p{margin:8px 0 0;font:700 clamp(1.15rem,1rem + .8vw,1.65rem)/1.25 var(--f-display);text-wrap:balance}
+.eje{margin:0;display:grid;gap:6px;max-width:36em}
+.eje span{font:700 11px/1 var(--f-mono);text-transform:uppercase;letter-spacing:.12em;color:var(--muted)}
+.eje strong{font:800 clamp(1.15rem,1rem + .6vw,1.5rem)/1.3 var(--f-display)}
+.teacher{background:var(--surface);border:1.5px solid var(--line);border-radius:12px;padding:16px 18px;display:grid;gap:14px;max-width:40em}
+.teacher h3{margin:0 0 4px;font:700 11px/1 var(--f-mono);text-transform:uppercase;letter-spacing:.12em;color:var(--muted)}
+.teacher p{margin:0;font-size:15.5px;line-height:1.55}
+
+/* Celular */
+.phone{--s:1;width:calc(300px*var(--s));height:calc(600px*var(--s));padding:calc(10px*var(--s));box-sizing:border-box;
+  border-radius:calc(44px*var(--s));background:var(--bezel);font-size:calc(14px*var(--s));
+  box-shadow:0 1px 0 1px rgba(255,255,255,.06) inset,0 24px 50px -22px rgba(10,30,20,.55);flex:none;max-width:100%}
+.screen{position:relative;width:100%;height:100%;border-radius:calc(34px*var(--s));overflow:hidden;background:var(--land);isolation:isolate}
+#map{position:absolute;inset:0;width:100%;height:100%;display:block}
+.banner{position:absolute;top:0;left:0;right:0;z-index:3;background:var(--sign);color:var(--sign-ink);padding:.55em 1em 1em;transition:background-color .35s,color .35s}
+.banner[data-tone="warn"]{background:var(--warn);color:var(--warn-ink)}
+.banner[data-tone="stop"]{background:var(--stop);color:#fff}
+.banner[data-tone="off"]{background:var(--off);color:#fff}
+.statusbar{display:flex;justify-content:space-between;align-items:center;font:700 .78em/1 var(--f-mono);opacity:.9;padding:.15em .7em .65em}
+.statusbar svg{width:2.4em;height:1em}
+.banner-row{display:grid;grid-template-columns:3em minmax(0,1fr);gap:.75em;align-items:center;min-height:3.4em}
+.b-icon svg{width:3em;height:3em;display:block}
+.b-dist{font:900 2em/1 var(--f-display);font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.b-text{font:700 1.02em/1.2 var(--f-display);margin-top:.15em}
+.spin{animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.tray{position:absolute;left:0;right:0;bottom:0;z-index:3;background:var(--surface);color:var(--ink);display:flex;justify-content:space-between;align-items:baseline;gap:.6em;padding:.85em 1.3em 1.5em;border-top:1px solid var(--line)}
+.tray strong{font:800 1.3em/1 var(--f-display);font-variant-numeric:tabular-nums}
+.tray .dim{color:var(--muted);font-size:.95em}
+.tray .right{font:700 .78em/1.2 var(--f-mono);text-transform:uppercase;letter-spacing:.06em;color:var(--muted);text-align:right}
+.overlay{position:absolute;z-index:2;left:.8em;right:.8em;top:8.4em;bottom:5.4em;background:var(--surface);border:1px solid var(--line);border-radius:1em;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 10px 30px -12px rgba(0,0,0,.35)}
+.ov-head{padding:.8em 1em;font:700 .74em/1 var(--f-mono);text-transform:uppercase;letter-spacing:.08em;color:var(--muted);border-bottom:1px solid var(--line)}
+.ov-list{flex:1;overflow:hidden;-webkit-mask-image:linear-gradient(transparent,#000 10%,#000 86%,transparent);mask-image:linear-gradient(transparent,#000 10%,#000 86%,transparent)}
+#ovList{list-style:none;margin:0;padding:0 1em;animation:scrollList 18s linear infinite}
+#ovList li{display:grid;gap:.15em;padding:.6em 0;border-bottom:1px dashed var(--line)}
+#ovList b{font:700 .74em/1 var(--f-mono);text-transform:uppercase;letter-spacing:.05em;color:var(--sign)}
+#ovList span{font:700 .98em/1.25 var(--f-display)}
+@keyframes scrollList{to{transform:translateY(-50%)}}
+
+.act{display:inline-flex;align-items:center;gap:.6em;font:800 1rem/1 var(--f-display);padding:.9em 1.5em .85em;border-radius:999px;border:0;background:var(--sign);color:var(--sign-ink);cursor:pointer;box-shadow:0 8px 20px -10px var(--sign);transition:transform .15s,opacity .2s}
+.act:hover{transform:translateY(-1px)}
+.act:disabled{opacity:.5;cursor:default;transform:none}
+.act svg{width:1.1em;height:1.1em}
+
+/* Mapa */
+.m-land{fill:var(--land)} .m-block{fill:var(--block)} .m-park{fill:var(--park)}
+.m-case{stroke:var(--street-case);stroke-width:20} .m-street{stroke:var(--street);stroke-width:16}
+.m-label{fill:var(--label);font:700 7px var(--f-mono);letter-spacing:.04em}
+.m-park-t{fill:var(--route-case);opacity:.7;font:700 7.5px var(--f-mono);letter-spacing:.08em}
+.veil{fill:var(--bezel);opacity:0;transition:opacity .5s}
+.nosignal .veil{opacity:.3}
+.route path{fill:none;stroke-linecap:round;stroke-linejoin:round}
+.r-case{stroke:var(--route-case);stroke-width:11}
+.r-line{stroke:var(--route);stroke-width:7}
+.route.ghost .r-case{stroke:none}
+.route.ghost .r-line{stroke:var(--route-case);opacity:.4;stroke-width:4;stroke-dasharray:1.5 9 !important}
+.route.stale .r-case{stroke:none}
+.route.stale .r-line{stroke:var(--off);opacity:.5;stroke-width:5}
+.route.blocked .r-case{stroke:none}
+.route.blocked .r-line{stroke:var(--stop);opacity:.65;stroke-width:5;stroke-dasharray:6 7 !important}
+.route path{transition:opacity .3s,stroke .3s}
+.car-halo{fill:var(--route);opacity:.25}
+.car-arrow{fill:#fff;stroke:var(--route-case);stroke-width:2.6;stroke-linejoin:round}
+#carRot{transform-box:fill-box;transform-origin:center;transition:transform .22s ease}
+.pin{fill:var(--stop)} .place-pin{fill:var(--off)} .pin-dot{fill:#fff}
+.pill-bg{fill:var(--surface);stroke:var(--line)} .pill-t{fill:var(--ink);font:800 9px var(--f-display)}
+.xm circle{fill:var(--stop);stroke:var(--surface);stroke-width:2}
+.xm path{stroke:#fff;stroke-width:2.6;stroke-linecap:round;fill:none}
+.jam{stroke:var(--warn);stroke-width:7;stroke-dasharray:5 4}
+.rep-bg{fill:var(--surface);stroke:var(--sign);stroke-width:1.6} .rep-dot{fill:var(--sign)} .rep-t{fill:var(--ink);font:700 8.5px var(--f-body)}
+.rs-bg{fill:var(--sign);stroke:#fff;stroke-width:1.4} .rs-t{fill:#fff;font:800 8.6px var(--f-display)} .rs-pole{stroke:var(--off);stroke-width:2}
+.pop{transform-box:fill-box;transform-origin:center;animation:pop .45s cubic-bezier(.2,1.5,.4,1) both}
+@keyframes pop{from{transform:scale(0);opacity:0}}
+
+/* Pie */
+.bottom{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-block:12px 18px;border-top:1px solid var(--line)}
+.navbtn{font:800 15px/1 var(--f-display);padding:12px 20px 11px;border-radius:999px;border:2px solid var(--ink);background:transparent;cursor:pointer}
+.navbtn.primary{background:var(--ink);color:var(--bg)}
+.navbtn:disabled{opacity:.35;cursor:default}
+.count{font:700 13px/1 var(--f-mono);color:var(--muted);font-variant-numeric:tabular-nums;text-align:center}
+.count kbd{font:inherit;border:1px solid var(--line);border-radius:4px;padding:2px 5px}
+.hint{display:block;margin-top:6px;font-weight:500;font-size:11px}
+
+@media (min-width:1280px) and (min-height:900px){.phone{--s:1.12}}
+@media (min-width:881px) and (max-height:820px){.phone{--s:.84}}
+@media (max-width:880px){
+  .stage{grid-template-columns:minmax(0,1fr);justify-items:center}
+  .copy{width:100%}
+  .stops{order:3;flex-basis:100%;max-width:none}
+}
+@media (max-width:440px){.phone{--s:.9} .hint{display:none} .tool{padding:9px 11px}}
+@media (prefers-reduced-motion: reduce){
+  .spin,#ovList,.pop,.copy.enter{animation:none}
+  #carRot,.banner,.veil,.route path{transition:none}
+}
+
+/* ===== Tema GO (afiche «El Espíritu y la misión»): rojo, crema y azul marino ===== */
+:root{
+  --bg:#EC4217; --surface:#FBF4E9; --ink:#1B2266; --muted:#5D6190; --line:#E4D6C1;
+  --sign:#2536A8; --sign-ink:#FFFFFF; --route:#2536A8; --route-case:#141D6B;
+  --warn:#FFB321; --warn-ink:#2A1A00; --stop:#E5320B; --off:#5D6190;
+  --land:#F3E6D2; --block:#FBF4E9; --street:#FFFFFF; --street-case:#E2D2B8; --park:#F6C9B5; --label:#8A7C66;
+  --bezel:#141A4F; --navy:#2536A8; --red:#EC4217; --cream:#FBF4E9;
+  --f-display:"Anton","Impact","Arial Narrow",sans-serif;
+  --f-body:"DM Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"Space Mono",ui-monospace,Menlo,monospace;
+  --f-hand:"Gochi Hand","Comic Sans MS",cursive;
+  color-scheme:light;
+}
+body{background:var(--red);color:#fff}
+.kicker{color:var(--cream);font-weight:700}
+h1{font:400 clamp(1.7rem,1.2rem + 1.6vw,2.6rem)/.95 var(--f-display);text-transform:uppercase;letter-spacing:.01em;color:#fff}
+.hand-ref{margin:4px 0 0;font:400 1.25rem/1 var(--f-hand);color:#fff;text-transform:uppercase}
+.hand-ref span{text-transform:none;color:var(--cream)}
+.brand-mark{background:var(--cream);color:var(--navy);border-radius:6px;box-shadow:4px 4px 0 var(--navy);transform:rotate(-4deg)}
+.tool{border:2px solid var(--cream);color:var(--cream);border-radius:6px;font-family:var(--f-mono)}
+.tool:hover{background:rgba(251,244,233,.12);border-color:var(--cream)}
+.tool[aria-pressed="true"]{background:var(--cream);color:var(--navy);border-color:var(--cream)}
+.stops::before{background:repeating-linear-gradient(90deg,rgba(251,244,233,.6) 0 10px,transparent 10px 16px)}
+.stop{border-color:var(--cream);background:var(--red)}
+.stop.done{background:var(--cream);border-color:var(--cream)}
+.stop[aria-current="step"]{background:var(--navy);border-color:var(--cream)}
+.eyebrow{color:var(--cream)}
+.chip{background:var(--navy);color:#fff;border-radius:3px}
+h2{font:400 clamp(2.4rem,1.3rem + 3.6vw,4.6rem)/.95 var(--f-display);text-transform:uppercase;letter-spacing:.005em;color:#fff}
+.sub{color:#fff}
+.verse blockquote{color:var(--cream);font-family:var(--f-body);font-style:italic;font-size:clamp(1.05rem,.95rem + .35vw,1.25rem);line-height:1.5}
+.verse figcaption{color:var(--cream)}
+.sign{position:relative;background:var(--cream);color:var(--navy);border:0;border-radius:4px;box-shadow:7px 7px 0 rgba(23,30,90,.3);padding:20px 22px 20px;transform:rotate(-1deg)}
+.sign::before{content:"";position:absolute;top:-12px;left:28px;width:92px;height:24px;transform:rotate(-5deg);background-color:var(--navy);background-image:linear-gradient(rgba(255,255,255,.35) 1.5px,transparent 1.5px),linear-gradient(90deg,rgba(255,255,255,.35) 1.5px,transparent 1.5px);background-size:8px 8px}
+.sign-label{color:var(--stop);opacity:1;font-family:var(--f-mono)}
+.sign p{font:400 clamp(1.4rem,1.1rem + 1vw,2rem)/1.15 var(--f-hand);color:var(--navy)}
+.eje span{color:var(--cream)}
+.eje strong{font:400 clamp(1.3rem,1rem + .8vw,1.8rem)/1.05 var(--f-display);text-transform:uppercase;color:#fff}
+.teacher{background:var(--cream);color:var(--ink);border:0;border-radius:4px;box-shadow:6px 6px 0 rgba(23,30,90,.3)}
+.teacher h3{color:var(--stop)}
+.act{background:var(--navy);color:#fff;border-radius:10px;font:400 1.1rem/1 var(--f-display);text-transform:uppercase;letter-spacing:.05em;box-shadow:4px 4px 0 #0E1550}
+.phone{box-shadow:10px 10px 0 rgba(23,30,90,.35)}
+.banner{background:var(--navy)}
+.b-dist{font:400 2.2em/1 var(--f-display)}
+.b-text{font:700 1.02em/1.2 var(--f-body)}
+.tray{background:var(--cream)}
+.tray strong{font:400 1.4em/1 var(--f-display);color:var(--red)}
+.overlay{background:var(--cream)}
+#ovList b{color:var(--stop)}
+#ovList span{font:400 1.2em/1.1 var(--f-hand)}
+.rs-bg{fill:var(--red)}
+.rs-t{font-family:var(--f-display);font-weight:400}
+.pill-t{font-family:var(--f-display);font-weight:400}
+.m-label{font-family:var(--f-mono)}
+.bottom{border-top:2px dashed rgba(251,244,233,.5)}
+.navbtn{font:400 16px/1 var(--f-display);text-transform:uppercase;letter-spacing:.05em;border:2.5px solid var(--cream);color:var(--cream);border-radius:10px}
+.navbtn.primary{background:var(--cream);color:var(--navy);box-shadow:4px 4px 0 var(--navy)}
+.count{color:var(--cream)}
+.count kbd{border-color:rgba(251,244,233,.5)}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <header class="top wrap">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 21V12a3 3 0 0 1 3-3h8"/><path d="M14 5l4 4-4 4"/></svg></span>
+      <div>
+        <p class="kicker">Serie: Una vida en el Espíritu · Lección 6</p>
+        <h1>El Espíritu y la misión</h1>
+        <p class="hand-ref">Hechos 13:1-4 · <span>El GPS y la señal perdida</span></p>
+      </div>
+    </div>
+    <nav class="stops" id="stops" aria-label="Escenas"></nav>
+    <div class="tools">
+      <button class="tool" id="notesBtn" type="button" aria-pressed="false">Guion del maestro</button>
+      <button class="tool" id="fsBtn" type="button">Pantalla completa</button>
+    </div>
+  </header>
+
+  <main class="stage wrap">
+    <div class="device-col">
+      <div class="phone" id="phone">
+        <div class="screen">
+          <svg id="map" viewBox="0 0 300 600" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+            <g id="streets"></g>
+            <g id="routes"></g>
+            <g id="dyn"></g>
+            <g id="destG"></g>
+            <g id="car"><g id="carRot"><circle class="car-halo" r="15"/><path class="car-arrow" d="M0 -10 L8 9 L0 4.5 L-8 9 Z"/></g></g>
+          </svg>
+          <div class="overlay" id="overlay" hidden>
+            <div class="ov-head">Ruta completa · toda tu vida</div>
+            <div class="ov-list"><ul id="ovList"></ul></div>
+          </div>
+          <div class="banner" id="banner" data-tone="go">
+            <div class="statusbar"><span>19:42</span><svg viewBox="0 0 34 12" fill="currentColor" aria-hidden="true"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/><rect x="22" y="2" width="10" height="8" rx="2" fill="none" stroke="currentColor" stroke-width="1.4"/><rect x="24" y="4" width="5" height="4" rx=".8"/></svg></div>
+            <div class="banner-row">
+              <span class="b-icon" id="bIcon"></span>
+              <div style="min-width:0"><div class="b-dist" id="bDist"></div><div class="b-text" id="bText"></div></div>
+            </div>
+          </div>
+          <div class="tray"><div><strong id="etaA"></strong> <span class="dim" id="etaB"></span></div><span class="right" id="etaC"></span></div>
+        </div>
+      </div>
+      <button class="act" id="actBtn" type="button"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.5v15l12.5-7.5z"/></svg><span id="actLabel"></span></button>
+      <p class="sr-only" id="live" aria-live="polite"></p>
+    </div>
+
+    <section class="copy" id="copy">
+      <p class="eyebrow"><span id="eyebrow"></span><span class="chip" id="optChip" hidden>Opcional</span></p>
+      <h2 id="title"></h2>
+      <p class="sub" id="sub"></p>
+      <figure class="verse" id="verse" hidden><blockquote id="verseText"></blockquote><figcaption id="verseRef"></figcaption></figure>
+      <div class="sign" id="ask" hidden><span class="sign-label" id="askLabel">Pregunta al grupo</span><p id="askText"></p></div>
+      <p class="eje" id="eje" hidden><span>Frase eje</span><strong>El Espíritu me guía, me envía y obra a través de mí, para que Cristo sea anunciado.</strong></p>
+      <aside class="teacher" id="teacher" hidden>
+        <div><h3>Cómo contarlo</h3><p id="script"></p></div>
+        <div><h3>Nota para el maestro</h3><p id="note"></p></div>
+      </aside>
+    </section>
+  </main>
+
+  <footer class="bottom wrap">
+    <button class="navbtn" id="prev" type="button">← Anterior</button>
+    <span class="count"><span id="count"></span><span class="hint">Flechas: cambiar escena · Espacio: animar · G: guion</span></span>
+    <button class="navbtn primary" id="next" type="button">Siguiente →</button>
+  </footer>
+</div>
+
+<script>
+(() => {
+  const NS = 'http://www.w3.org/2000/svg';
+  const $ = id => document.getElementById(id);
+  const el = (tag, attrs, parent) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(e);
+    return e;
+  };
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* ---------- Geometría de la ruta ---------- */
+  const START = [120, 500], A = [120, 400], B = [200, 400], C = [200, 250], D = [270, 250], DEST = [270, 150];
+  const MAIN = [START, A, B, C, D, DEST];
+  const pathD = pts => pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ');
+  const segLen = (p, q) => Math.hypot(q[0] - p[0], q[1] - p[1]);
+  const polyLen = pts => { let L = 0; for (let i = 1; i < pts.length; i++) L += segLen(pts[i - 1], pts[i]); return L; };
+  const heading = (p, q) => Math.atan2(q[1] - p[1], q[0] - p[0]);
+  function pointAt(pts, dist) {
+    for (let i = 1; i < pts.length; i++) {
+      const p = pts[i - 1], q = pts[i], l = segLen(p, q);
+      if (dist <= l || i === pts.length - 1) {
+        const t = l ? Math.max(0, Math.min(dist / l, 1)) : 0;
+        return [p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t, heading(p, q)];
+      }
+      dist -= l;
+    }
+    return [pts[0][0], pts[0][1], 0];
+  }
+  const stub = (p, q, n = 24) => { const l = segLen(p, q); return [p[0] + (q[0] - p[0]) / l * n, p[1] + (q[1] - p[1]) / l * n]; };
+
+  /* ---------- Mapa ---------- */
+  const mapSvg = $('map'), streetsG = $('streets'), routesG = $('routes'), dynG = $('dyn'), destG = $('destG');
+  function buildMap() {
+    const VX = [40, 120, 200, 270], HY = [140, 250, 400, 520];
+    el('rect', { x: 0, y: 0, width: 300, height: 600, class: 'm-land' }, streetsG);
+    const xs = [-30, ...VX, 330], ys = [-30, ...HY, 630];
+    for (let i = 0; i < xs.length - 1; i++) for (let j = 0; j < ys.length - 1; j++) {
+      const park = xs[i] === 40 && ys[j] === 250;
+      el('rect', { x: xs[i] + 11, y: ys[j] + 11, width: xs[i + 1] - xs[i] - 22, height: ys[j + 1] - ys[j] - 22, rx: 5, class: park ? 'm-park' : 'm-block' }, streetsG);
+    }
+    for (const cls of ['m-case', 'm-street']) {
+      VX.forEach(x => el('line', { x1: x, y1: -10, x2: x, y2: 610, class: cls }, streetsG));
+      HY.forEach(y => el('line', { x1: -10, y1: y, x2: 310, y2: y, class: cls }, streetsG));
+    }
+    const label = (txt, x, y, rot) => { const t = el('text', { x, y, class: 'm-label', transform: rot ? `rotate(-90 ${x} ${y})` : '' }, streetsG); t.textContent = txt.toUpperCase(); };
+    label('Av. Colegio', 46, 402.5);
+    label('Pasaje Casa', 126, 252.5);
+    label('Calle Amigos', 206, 522.5);
+    label('Calle Recreo', 202.5, 505, true);
+    label('Calle GO', 272.5, 380, true);
+    const pk = el('text', { x: 80, y: 328, class: 'm-park-t', 'text-anchor': 'middle' }, streetsG); pk.textContent = 'PLAZA';
+    el('rect', { x: 0, y: 0, width: 300, height: 600, class: 'veil' }, streetsG);
+  }
+
+  let ghost, live;
+  function makeRoute(cls) {
+    const g = el('g', { class: 'route ' + cls }, routesG);
+    el('path', { class: 'r-case' }, g); el('path', { class: 'r-line' }, g);
+    return g;
+  }
+  function setRoute(g, pts, animate) {
+    const L = polyLen(pts), d = pts.length ? pathD(pts) : '';
+    for (const p of g.querySelectorAll('path')) {
+      p.setAttribute('d', d);
+      p.style.transition = 'none';
+      if (animate && !reduce && L > 0) {
+        p.style.strokeDasharray = L + ' ' + L;
+        p.style.strokeDashoffset = L;
+        p.getBoundingClientRect();
+        p.style.transition = 'stroke-dashoffset .9s ease, opacity .3s, stroke .3s';
+        p.style.strokeDashoffset = 0;
+      } else {
+        p.style.strokeDasharray = '';
+        p.style.strokeDashoffset = '';
+      }
+    }
+  }
+
+  /* ---------- Auto ---------- */
+  const car = $('car'), carRot = $('carRot');
+  let carDeg = 0;
+  function placeCar(x, y, ang) {
+    car.setAttribute('transform', `translate(${x.toFixed(1)} ${y.toFixed(1)})`);
+    if (ang !== undefined) {
+      let deg = ang * 180 / Math.PI + 90;
+      while (deg - carDeg > 180) deg -= 360;
+      while (deg - carDeg < -180) deg += 360;
+      carDeg = deg;
+      carRot.style.transform = `rotate(${deg}deg)`;
+    }
+  }
+  function snapCar(x, y, ang) {
+    carRot.style.transition = 'none';
+    placeCar(x, y, ang);
+    carRot.getBoundingClientRect();
+    carRot.style.transition = '';
+  }
+
+  /* ---------- Control de animaciones ---------- */
+  let runId = 0;
+  const Cancel = { cancelled: true };
+  const wait = (ms, id) => new Promise((res, rej) => setTimeout(() => id === runId ? res() : rej(Cancel), reduce ? Math.min(ms, 80) : ms));
+  function drive(pts, id, speed = 115) {
+    return new Promise((res, rej) => {
+      const L = polyLen(pts);
+      if (reduce || L === 0) { const p = pointAt(pts, L); placeCar(p[0], p[1], p[2]); return res(); }
+      const dur = L / speed * 1000; let t0 = null;
+      const f = now => {
+        if (id !== runId) return rej(Cancel);
+        if (t0 === null) t0 = now;
+        const k = Math.min((now - t0) / dur, 1);
+        const e = k < .5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+        const p = pointAt(pts, L * e);
+        placeCar(p[0], p[1], p[2]);
+        if (k < 1) requestAnimationFrame(f); else res();
+      };
+      requestAnimationFrame(f);
+    });
+  }
+
+  /* ---------- Elementos del mapa ---------- */
+  function measure(t, fallback) { let w = 0; try { w = t.getComputedTextLength(); } catch (e) {} return w || fallback; }
+  function pill(parent, x, y, text, anchor) {
+    const g = el('g', {}, parent);
+    const r = el('rect', { class: 'pill-bg', rx: 6, height: 16, y: y - 8 }, g);
+    const t = el('text', { class: 'pill-t', y: y + 3.3 }, g);
+    t.textContent = text;
+    const W = measure(t, text.length * 5) + 12;
+    const x0 = anchor === 'end' ? x - W : anchor === 'middle' ? x - W / 2 : x;
+    r.setAttribute('x', x0); r.setAttribute('width', W); t.setAttribute('x', x0 + 6);
+    return g;
+  }
+  function pinShape(parent, x, y, cls) {
+    el('path', { class: cls, d: `M${x} ${y}c-6-8-10-12-10-18a10 10 0 1 1 20 0c0 6-4 10-10 18z` }, parent);
+    el('circle', { class: 'pin-dot', cx: x, cy: y - 18, r: 3.6 }, parent);
+  }
+  function placeDest(label) {
+    destG.textContent = '';
+    pinShape(destG, DEST[0], DEST[1], 'pin');
+    pill(destG, DEST[0] - 13, DEST[1] - 18, label, 'end');
+  }
+  function place(x, y, label, anchor) {
+    const g = el('g', {}, dynG);
+    pinShape(g, x, y, 'place-pin');
+    pill(g, anchor === 'end' ? x - 13 : x + 13, y - 18, label, anchor);
+  }
+  function xMark(x, y) {
+    const g = el('g', { class: 'xm pop' }, dynG);
+    el('circle', { cx: x, cy: y, r: 10 }, g);
+    el('path', { d: `M${x - 4} ${y - 4}l8 8m0-8l-8 8` }, g);
+  }
+  function rep(x, y, text) {
+    const g = el('g', { class: 'pop' }, dynG);
+    const r = el('rect', { class: 'rep-bg', y: y - 11, height: 22, rx: 11 }, g);
+    const c = el('circle', { class: 'rep-dot', cy: y, r: 5 }, g);
+    const t = el('text', { class: 'rep-t', y: y + 3 }, g);
+    t.textContent = text;
+    const W = measure(t, text.length * 4.6) + 28, x0 = x - W / 2;
+    r.setAttribute('x', x0); r.setAttribute('width', W); c.setAttribute('cx', x0 + 11); t.setAttribute('x', x0 + 20);
+  }
+  function roadSign(x, y, lines) {
+    const g = el('g', { class: 'pop' }, dynG);
+    const lh = 10.5, h = lines.length * lh + 9;
+    el('line', { class: 'rs-pole', x1: x, y1: y + h / 2, x2: x, y2: y + h / 2 + 7 }, g);
+    const r = el('rect', { class: 'rs-bg', y: y - h / 2, height: h, rx: 3 }, g);
+    let W = 0;
+    lines.forEach((ln, i) => {
+      const t = el('text', { class: 'rs-t', x, y: y - h / 2 + 5 + lh * (i + 1) - 2, 'text-anchor': 'middle' }, g);
+      t.textContent = ln; W = Math.max(W, measure(t, ln.length * 5));
+    });
+    W += 14; r.setAttribute('x', x - W / 2); r.setAttribute('width', W);
+  }
+
+  /* ---------- Banner y bandeja ---------- */
+  const I = (p, cls = '') => `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
+  const ICONS = {
+    right: I('<path d="M7 21V12a3 3 0 0 1 3-3h8"/><path d="M14 5l4 4-4 4"/>'),
+    left: I('<path d="M17 21V12a3 3 0 0 0-3-3H6"/><path d="M10 5L6 9l4 4"/>'),
+    straight: I('<path d="M12 21V4"/><path d="M7 9l5-5 5 5"/>'),
+    flag: I('<path d="M6 21V4"/><path d="M6 4h12l-2.5 4.5L18 13H6"/>'),
+    spin: I('<path d="M20.5 12a8.5 8.5 0 1 1-2.6-6.1"/><path d="M20.5 3.5v5h-5"/>', 'spin'),
+    block: I('<circle cx="12" cy="12" r="9"/><path d="M8.5 8.5l7 7M15.5 8.5l-7 7"/>'),
+    nosig: I('<path d="M2.5 8.5a14 14 0 0 1 19 0"/><path d="M5.8 12a9.5 9.5 0 0 1 12.4 0"/><path d="M9 15.4a5 5 0 0 1 6 0"/><circle cx="12" cy="19" r=".8" fill="currentColor"/><path d="M3 3l18 18"/>'),
+    list: I('<path d="M9 6h11M9 12h11M9 18h11"/><path d="M4 6h.5M4 12h.5M4 18h.5"/>'),
+    people: I('<circle cx="9" cy="8" r="3.2"/><path d="M3 20a6 6 0 0 1 12 0"/><circle cx="17.2" cy="9" r="2.4"/><path d="M16 14.2a5 5 0 0 1 5.5 5.3"/>')
+  };
+  const bannerEl = $('banner'), liveEl = $('live');
+  function setBanner(tone, icon, dist, text) {
+    bannerEl.dataset.tone = tone;
+    $('bIcon').innerHTML = ICONS[icon] || '';
+    const bd = $('bDist'); bd.textContent = dist || ''; bd.hidden = !dist;
+    $('bText').textContent = text;
+    liveEl.textContent = (dist ? dist + '. ' : '') + text;
+  }
+  function setEta(a, b, c) { $('etaA').textContent = a; $('etaB').textContent = b; $('etaC').textContent = c; }
+
+  const STEPS = [
+    { icon: 'right', dist: '100 m', text: 'Gira a la derecha en Av. Colegio' },
+    { icon: 'left', dist: '80 m', text: 'Gira a la izquierda en Calle Recreo' },
+    { icon: 'right', dist: '150 m', text: 'Gira a la derecha en Pasaje Casa' },
+    { icon: 'left', dist: '70 m', text: 'Gira a la izquierda en Calle GO' },
+    { icon: 'straight', dist: '100 m', text: 'Tu destino está adelante' },
+    { icon: 'flag', dist: '', text: 'Llegaste a destino' }
+  ];
+  const stepBanner = i => setBanner('go', STEPS[i].icon, STEPS[i].dist, STEPS[i].text);
+  function etaFrom(i) {
+    const rem = Math.round(polyLen(MAIN.slice(i)));
+    if (rem <= 0) return setEta('Llegaste', '', 'Destino');
+    setEta(Math.max(1, Math.round(rem / 120)) + ' min', rem + ' m', 'Llegada 19:47');
+  }
+  function showStep(i, anim) {
+    setRoute(ghost, MAIN, false);
+    if (i < 5) {
+      const pts = [MAIN[i], MAIN[i + 1]];
+      if (MAIN[i + 2]) pts.push(stub(MAIN[i + 1], MAIN[i + 2]));
+      setRoute(live, pts, anim);
+    } else setRoute(live, [], false);
+    stepBanner(i); etaFrom(i);
+  }
+
+  /* ---------- Pantalla gigante ---------- */
+  const LIFE = [
+    ['Mañana 07:14', 'Ponte el buzo gris'],
+    ['En 3 días', 'Siéntate en la tercera fila'],
+    ['En 2 meses', 'Anótate en el equipo de fútbol'],
+    ['En 1 año', 'Elige esta orientación'],
+    ['En 4 años', 'Estudia esta carrera'],
+    ['En 6 años', 'Múdate a otra ciudad'],
+    ['En 9 años', 'Cásate con…'],
+    ['En 11 años', 'Acepta ese trabajo'],
+    ['En 15 años', 'Compra la casa de la esquina'],
+    ['En 30 años', 'Y después…']
+  ];
+  $('ovList').innerHTML = [...LIFE, ...LIFE].map(([a, b]) => `<li><b>${a}</b><span>${b}</span></li>`).join('');
+
+  /* ---------- Escenas ---------- */
+  const SCENES = [
+    {
+      stop: 'Inicio',
+      eyebrow: 'Punto 1 · «Mientras adoraban, el Espíritu habló»',
+      title: 'El GPS y la señal perdida',
+      sub: '¿Cómo nos guía Dios? Vamos a pensarlo con algo que usas casi todos los días.',
+      ask: '¿Quién usó el GPS o un mapa en el celular esta semana? ¿Para ir adónde?',
+      script: 'Todos usamos el mapa del celular: para ir a la casa de un amigo, a un partido, a un lugar nuevo. Hoy lo vamos a usar para entender cómo guió el Espíritu a la iglesia de Antioquía, y cómo nos guía a nosotros.',
+      note: 'Úsala después de leer y explicar Hechos 13:1-3, antes de la dinámica de las tres situaciones. Tiempo: 3 a 4 minutos dentro de los 8 del punto 1. Las escenas marcadas «Opcional» se pueden saltar. Avanza con las flechas o con un control de presentaciones; el botón verde bajo el celular (o la barra espaciadora) anima cada escena.',
+      async enter(id) {
+        placeDest('Destino');
+        setBanner('go', 'spin', '', 'Calculando ruta…');
+        setEta('—', '', 'Buscando destino');
+        await wait(1100, id);
+        setRoute(live, MAIN, true); stepBanner(0); etaFrom(0);
+      }
+    },
+    {
+      stop: 'Pantalla gigante',
+      eyebrow: 'Lo que nos gustaría',
+      title: 'Una pantalla gigante con toda tu vida',
+      sub: 'Qué estudiar, con quién casarte, dónde vivir, qué hacer en cada momento. Todo junto y de una vez.',
+      ask: 'Si Dios te mostrara hoy una sola respuesta, ¿qué le pedirías?',
+      script: 'A veces esperamos que Dios nos avise así: una voz del cielo y una pantalla enorme con todas las respuestas. Qué carrera, con quién casarnos, qué hacer cada día. Nos daría seguridad. Pero ningún GPS funciona así, y Lucas tampoco cuenta así lo que pasó en Antioquía.',
+      note: 'Si hiciste la dinámica de apertura, señala la pizarra: ¿alguien escribió algo parecido? No corrijas a nadie; la escena siguiente lo hace por ti.',
+      enter() {
+        placeDest('Destino');
+        setRoute(live, MAIN, false);
+        $('overlay').hidden = false;
+        setBanner('warn', 'list', '47', 'instrucciones de una sola vez');
+        setEta('68 años', 'de ruta', 'Toda tu vida');
+      }
+    },
+    {
+      stop: 'Paso a paso',
+      eyebrow: 'Cómo funciona de verdad',
+      title: 'Una instrucción a la vez',
+      sub: 'El GPS te da el próximo giro cuando estás cerca de darlo. No necesitas ver toda la ruta para dar el siguiente paso.',
+      ask: '¿Cuál es un paso que ya sabes que tienes que dar esta semana?',
+      script: 'El GPS no te dice cuarenta giros juntos. Te dice «en 100 metros, gira a la derecha». Y recién cuando giraste, te da el siguiente. Además, muchas cosas Jesús ya las dijo: que hagas discípulos, que ames a tu prójimo, que sirvas. Para eso no hace falta una voz especial; hace falta dar el próximo paso donde estás.',
+      note: 'Toca «Avanzar al próximo giro» mientras hablas: el auto llega a cada esquina y recién ahí aparece la instrucción siguiente. Cuida no prometer que Dios siempre va a dar una indicación concreta: Lucas no presenta Hechos 13 como una receta.',
+      enter() { placeDest('Destino'); this.step = 0; showStep(0, false); },
+      label() { return this.step < 5 ? 'Avanzar al próximo giro' : 'Empezar de nuevo'; },
+      async act(id) {
+        if (this.step >= 5) { this.step = 0; snapCar(START[0], START[1], heading(START, A)); showStep(0, true); return; }
+        const i = this.step;
+        setRoute(live, [MAIN[i], MAIN[i + 1]], false);
+        await drive([MAIN[i], MAIN[i + 1]], id);
+        this.step = i + 1;
+        if (this.step < 5) { const p = MAIN[this.step]; placeCar(p[0], p[1], heading(p, MAIN[this.step + 1])); }
+        showStep(this.step, true);
+      }
+    },
+    {
+      stop: 'Recalculando',
+      eyebrow: 'Cuando te equivocas',
+      title: 'Recalculando…',
+      sub: 'Si tomas la calle equivocada, el GPS no te grita ni se apaga. Busca una ruta nueva desde donde estás.',
+      ask: '¿Qué haces cuando te pasas una esquina? ¿Y qué hace el GPS?',
+      script: 'A todos nos pasó: te pasas la esquina y el GPS no dice «arruinaste todo». Dice «recalculando» y te da una ruta nueva desde donde estás. Si buscaste a Dios y aun así elegiste mal un camino, el Espíritu no te abandona: te sigue guiando desde ahí.',
+      note: 'La imagen habla de equivocarse al discernir, no de restarle peso al pecado. Si alguien lo pregunta: el pecado se confiesa y se deja, y Dios perdona. Toca «Tomar la calle equivocada» y después «Seguir la ruta nueva».',
+      enter() { placeDest('Destino'); this.phase = 0; setRoute(live, MAIN, false); stepBanner(0); etaFrom(0); },
+      label() { return ['Tomar la calle equivocada', 'Seguir la ruta nueva', 'Repetir'][this.phase]; },
+      async act(id) {
+        const W1 = [120, 330], W2 = [120, 250], NEW = [W2, D, DEST];
+        if (this.phase === 0) {
+          await drive([START, A], id);
+          await drive([A, W1], id, 100);
+          live.classList.add('stale');
+          setBanner('warn', 'spin', '', 'Recalculando…'); setEta('…', '', 'Buscando ruta');
+          await drive([W1, W2], id, 70);
+          await wait(1200, id);
+          const alt = makeRoute('alt'); setRoute(alt, NEW, true);
+          placeCar(W2[0], W2[1], heading(W2, D));
+          setBanner('go', 'right', 'Ahora', 'Gira a la derecha en Pasaje Casa');
+          setEta('2 min', Math.round(polyLen(NEW)) + ' m', 'Ruta nueva');
+          this.phase = 1;
+        } else if (this.phase === 1) {
+          await drive(NEW, id);
+          setBanner('go', 'flag', '', 'Llegaste a destino'); setEta('Llegaste', '', 'Por otra calle');
+          this.phase = 2;
+        } else { go(cur); }
+      }
+    },
+    {
+      stop: 'Calle cerrada',
+      optional: true,
+      eyebrow: 'Calles cerradas · Hechos 16:6-10',
+      title: 'A veces la calle está cerrada',
+      sub: 'El Espíritu no dejó a Pablo predicar en Asia ni entrar en Bitinia. Después de la visión del hombre de Macedonia, concluyeron juntos que Dios los llamaba allí.',
+      ask: '¿Una puerta cerrada siempre significa que algo salió mal?',
+      script: 'Pablo quería ir a Asia, y el Espíritu Santo se lo impidió. Intentó entrar en Bitinia, y el Espíritu de Jesús no lo dejó. Una noche tuvo la visión de un hombre de Macedonia, y él y su equipo concluyeron juntos que Dios los llamaba allí. A veces el Espíritu guía abriendo un camino, y a veces cerrando una calle que querías tomar.',
+      note: 'Es un relato de apoyo: menciónalo, no lo desarrolles. La columna del punto es Hechos 13:1-3. Si vas justo de tiempo, salta esta escena.',
+      enter() {
+        this.phase = 0;
+        place(40, 250, 'Asia', 'start');
+        place(120, 140, 'Bitinia', 'start');
+        placeDest('Macedonia');
+        setBanner('go', 'list', '3', 'destinos posibles');
+        setEta('—', '', '¿Por dónde?');
+      },
+      label() { return ['Buscar ruta', 'Repetir'][this.phase]; },
+      async act(id) {
+        if (this.phase === 1) return go(cur);
+        const RA = [START, A, [40, 400], [40, 250]], RB = [START, A, [120, 140]];
+        const r1 = makeRoute('try'); setRoute(r1, RA, true);
+        setBanner('go', 'left', '100 m', 'Ruta hacia Asia'); setEta('3 min', Math.round(polyLen(RA)) + ' m', 'Asia');
+        await wait(1300, id);
+        xMark(80, 400); r1.classList.add('blocked');
+        setBanner('stop', 'block', '', 'Asia: el Espíritu Santo lo impidió'); setEta('—', '', 'Hechos 16:6');
+        await wait(2000, id);
+        const r2 = makeRoute('try'); setRoute(r2, RB, true);
+        setBanner('go', 'straight', '360 m', 'Ruta hacia Bitinia'); setEta('3 min', Math.round(polyLen(RB)) + ' m', 'Bitinia');
+        await wait(1300, id);
+        xMark(120, 320); r2.classList.add('blocked');
+        setBanner('stop', 'block', '', 'Bitinia: el Espíritu de Jesús no lo permitió'); setEta('—', '', 'Hechos 16:7');
+        await wait(2000, id);
+        routesG.appendChild(live);
+        setRoute(live, MAIN, true);
+        setBanner('go', 'right', '100 m', 'Ruta hacia Macedonia'); etaFrom(0);
+        await wait(1000, id);
+        await drive(MAIN, id, 125);
+        setBanner('go', 'flag', '', 'Llegaste a Macedonia'); setEta('Llegaste', '', 'Hechos 16:10');
+        this.phase = 1;
+      }
+    },
+    {
+      stop: 'Comunidad',
+      eyebrow: 'El mapa se actualiza con otros',
+      title: 'No manejas solo',
+      sub: 'El mapa sabe del tráfico porque otros conductores lo reportan. En Antioquía, el Espíritu le habló a una iglesia que adoraba junta, y la iglesia confirmó y envió.',
+      verse: { text: '«Cierto día, mientras estos hombres adoraban al Señor y ayunaban, el Espíritu Santo dijo: “Consagren a Bernabé y a Saulo para el trabajo especial al cual los he llamado”».', ref: 'Hechos 13:2 (NTV)' },
+      ask: '¿Con quién conversarías lo que crees que Dios te está mostrando?',
+      script: '¿Por qué el GPS sabe que hay una calle cortada más adelante? Porque otros conductores lo avisaron. En Antioquía, el Espíritu no les habló a Bernabé y a Saulo a escondidas para que se fueran solos. Le habló a la iglesia mientras adoraba, y la iglesia volvió a orar, les impuso las manos y los envió. Lo que recibes se conversa y se confirma con otros: tu líder de grupo, tus papás, un líder de confianza.',
+      note: 'Los demás ayudan a discernir, pero no deciden por el adolescente ni ocupan el lugar de la Palabra. El Espíritu también guía a personas (Felipe, Ananías, Pedro), y en Hechos lo que uno recibe termina compartido con otros. Toca «Mostrar reportes».',
+      enter() { placeDest('Destino'); this.phase = 0; setRoute(live, MAIN, false); stepBanner(0); etaFrom(0); },
+      label() { return ['Mostrar reportes', 'Repetir'][this.phase]; },
+      async act(id) {
+        if (this.phase === 1) return go(cur);
+        setBanner('go', 'people', '', 'Llegan reportes de otros conductores');
+        await wait(500, id); rep(80, 325, 'Tu iglesia');
+        await wait(700, id); rep(160, 465, 'Tu líder de grupo');
+        await wait(700, id); rep(235, 200, 'Tus papás');
+        el('line', { class: 'jam pop', x1: 209, y1: 250, x2: 261, y2: 250 }, dynG);
+        await wait(1100, id);
+        live.classList.add('stale');
+        const NEW = [START, A, B, [270, 400], DEST];
+        const alt = makeRoute('alt'); setRoute(alt, NEW, true);
+        setBanner('go', 'people', '3', 'reportes actualizaron tu ruta');
+        setEta(Math.max(1, Math.round(polyLen(NEW) / 120)) + ' min', Math.round(polyLen(NEW)) + ' m', 'Ruta mejor');
+        this.phase = 1;
+      }
+    },
+    {
+      stop: 'Sin señal',
+      eyebrow: 'La señal perdida',
+      title: '¿Y si no escucho nada?',
+      sub: 'En un túnel el GPS pierde la señal, pero la calle sigue ahí. Si oras y todavía no escuchaste nada concreto, no estás haciendo algo mal: sigue obedeciendo lo que Jesús ya dijo.',
+      ask: '¿Qué cosa que Jesús ya dijo puedes obedecer esta semana sin esperar una señal?',
+      script: 'Cuando entras a un túnel, el GPS se queda sin señal. ¿Qué haces? No frenas en el medio ni te bajas del auto. Sigues por la calle que ya conoces. Jesús ya marcó el camino: haz discípulos, ama a tu prójimo, sirve. Y cuando sientas algo por dentro, recuerda que una impresión no es automáticamente la voz de Dios: se revisa con la Palabra, con el carácter de Jesús y con creyentes maduros.',
+      note: 'Este es el corazón del título: la «señal perdida» no es un fracaso espiritual. Conecta con lo aprendido en la lección 2 sobre examinar las impresiones. Toca «Seguir manejando».',
+      enter() {
+        placeDest('Destino'); this.phase = 0;
+        mapSvg.classList.add('nosignal');
+        setRoute(live, MAIN, false);
+        roadSign(160, 368, ['Haz discípulos']);
+        roadSign(236, 322, ['Ama a tu', 'prójimo']);
+        roadSign(236, 192, ['Sirve']);
+        setBanner('off', 'nosig', 'Sin señal', 'Sigue por la ruta marcada');
+        setEta('—', '', 'Buscando señal…');
+      },
+      label() { return ['Seguir manejando', 'Repetir'][this.phase]; },
+      async act(id) {
+        if (this.phase === 1) return go(cur);
+        await drive(MAIN, id, 85);
+        setBanner('off', 'flag', 'Llegaste', 'por la ruta que ya conocías');
+        setEta('Llegaste', '', 'Sin señal');
+        this.phase = 1;
+      }
+    },
+    {
+      stop: 'Cierre',
+      eyebrow: 'Para cerrar',
+      title: 'El Espíritu guía a sus hijos y les enseña a discernir juntos.',
+      sub: 'La comparación tiene un límite: un GPS no te conoce ni te ama. El Espíritu Santo es Dios, te conoce y siempre te lleva hacia Jesús.',
+      eje: true,
+      askLabel: 'Lo que sigue',
+      ask: 'Dinámica: tres situaciones, en los mismos equipos de la apertura.',
+      script: 'Un GPS es una máquina: no te conoce y no le importa si llegas. El Espíritu Santo no es una app; es Dios mismo, que te conoce y te ama. Y no te guía hacia cualquier lado: siempre te lleva hacia Jesús y su misión. Por eso lo que creemos escuchar lo revisamos con la Palabra, con el carácter de Jesús y con otros creyentes.',
+      note: 'Cierra con la frase del punto y pasa directo a la dinámica de las tres situaciones. Si el tiempo está justo, no repitas la ilustración: los equipos van a aplicar estos mismos criterios.',
+      enter() {
+        placeDest('Cristo anunciado');
+        setRoute(live, MAIN, false);
+        snapCar(DEST[0], DEST[1] + 14, -Math.PI / 2);
+        setBanner('go', 'flag', '', 'Llegaste');
+        setEta('Punto 1', '', 'Sigue: tres situaciones');
+      }
+    }
+  ];
+
+  /* ---------- Navegación ---------- */
+  let cur = 0, busy = false;
+  const actBtn = $('actBtn');
+  const stopsNav = $('stops');
+  SCENES.forEach((s, i) => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'stop' + (s.optional ? ' opt' : '');
+    b.title = `${i + 1}. ${s.stop}${s.optional ? ' (opcional)' : ''}`;
+    b.setAttribute('aria-label', b.title);
+    b.addEventListener('click', () => go(i));
+    stopsNav.appendChild(b);
+  });
+
+  function reset() {
+    routesG.textContent = ''; dynG.textContent = ''; destG.textContent = '';
+    ghost = makeRoute('ghost'); live = makeRoute('live');
+    $('overlay').hidden = true;
+    mapSvg.classList.remove('nosignal');
+    snapCar(START[0], START[1], heading(START, A));
+  }
+  function updateAct() {
+    const sc = SCENES[cur];
+    const label = sc.label ? sc.label.call(sc) : null;
+    actBtn.hidden = !label;
+    if (label) $('actLabel').textContent = label;
+    actBtn.disabled = busy;
+  }
+  function render(sc, i) {
+    $('eyebrow').textContent = sc.eyebrow;
+    $('optChip').hidden = !sc.optional;
+    $('title').textContent = sc.title;
+    $('sub').textContent = sc.sub;
+    $('verse').hidden = !sc.verse;
+    if (sc.verse) { $('verseText').textContent = sc.verse.text; $('verseRef').textContent = sc.verse.ref; }
+    $('ask').hidden = !sc.ask;
+    $('askLabel').textContent = sc.askLabel || 'Pregunta al grupo';
+    $('askText').textContent = sc.ask || '';
+    $('eje').hidden = !sc.eje;
+    $('script').textContent = sc.script;
+    $('note').textContent = sc.note;
+    $('count').textContent = `Escena ${i + 1} de ${SCENES.length}`;
+    $('prev').disabled = i === 0;
+    $('next').disabled = i === SCENES.length - 1;
+    [...stopsNav.children].forEach((b, j) => {
+      b.classList.toggle('done', j < i);
+      if (j === i) b.setAttribute('aria-current', 'step'); else b.removeAttribute('aria-current');
+    });
+    const copy = $('copy');
+    copy.classList.remove('enter'); void copy.offsetWidth; copy.classList.add('enter');
+  }
+  function go(i) {
+    cur = Math.max(0, Math.min(SCENES.length - 1, i));
+    runId++; busy = false;
+    const sc = SCENES[cur];
+    render(sc, cur);
+    reset();
+    const id = runId;
+    try { Promise.resolve(sc.enter(id)).catch(e => { if (e !== Cancel) console.error(e); }); }
+    catch (e) { console.error(e); }
+    updateAct();
+    try { history.replaceState(null, '', '#escena-' + (cur + 1)); } catch (e) {}
+  }
+  async function runAction() {
+    const sc = SCENES[cur];
+    if (!sc.act || busy || actBtn.hidden) return;
+    busy = true; updateAct();
+    const id = runId;
+    try { await sc.act(id); }
+    catch (e) { if (e !== Cancel) console.error(e); }
+    finally { if (id === runId) { busy = false; updateAct(); } }
+  }
+
+  actBtn.addEventListener('click', runAction);
+  $('prev').addEventListener('click', () => go(cur - 1));
+  $('next').addEventListener('click', () => go(cur + 1));
+
+  const notesBtn = $('notesBtn');
+  function setNotes(on) {
+    notesBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    $('teacher').hidden = !on;
+    try { localStorage.setItem('gps-guion', on ? '1' : '0'); } catch (e) {}
+  }
+  notesBtn.addEventListener('click', () => setNotes(notesBtn.getAttribute('aria-pressed') !== 'true'));
+  let notesOn = false;
+  try { notesOn = localStorage.getItem('gps-guion') === '1'; } catch (e) {}
+  setNotes(notesOn);
+
+  const fsBtn = $('fsBtn');
+  if (!document.fullscreenEnabled) fsBtn.hidden = true;
+  fsBtn.addEventListener('click', () => {
+    const p = document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen();
+    if (p && p.catch) p.catch(() => { fsBtn.hidden = true; });
+  });
+  document.addEventListener('fullscreenchange', () => { fsBtn.textContent = document.fullscreenElement ? 'Salir de pantalla completa' : 'Pantalla completa'; });
+
+  document.addEventListener('keydown', e => {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    const onButton = e.target && e.target.closest && e.target.closest('button');
+    if (e.key === 'ArrowRight' || e.key === 'PageDown') { e.preventDefault(); go(cur + 1); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); go(cur - 1); }
+    else if ((e.key === ' ' || e.key === 'Enter') && !onButton) { e.preventDefault(); runAction(); }
+    else if (e.key === 'g' || e.key === 'G') setNotes(notesBtn.getAttribute('aria-pressed') !== 'true');
+  });
+
+  buildMap();
+  const fromHash = () => { const m = /^#escena-(\d+)$/.exec(location.hash || ''); return m ? parseInt(m[1], 10) - 1 : 0; };
+  window.addEventListener('hashchange', () => { const i = fromHash(); if (i !== cur) go(i); });
+  go(fromHash());
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { if (!busy) go(cur); });
+})();
+</script>
+<script>if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});</script>
+</body>
+</html>
